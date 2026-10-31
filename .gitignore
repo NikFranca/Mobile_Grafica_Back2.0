@@ -1,0 +1,17 @@
+# Local credentials and environment files
+.env
+.env.*
+!.env.example
+
+# Dart dependencies, caches and generated server
+.dart_tool/
+.packages
+.pub/
+.pub-cache/
+build/
+coverage/
+
+# Local editor settings and logs
+.idea/
+.vscode/
+*.log
