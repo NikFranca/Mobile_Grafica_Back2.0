@@ -1,4 +1,3 @@
-
 import 'dart:io';
 
 import 'package:dart_frog/dart_frog.dart';
@@ -24,7 +23,6 @@ Response respostaErro(int statusCode, String mensagem) {
 
 Future<Response> onRequest(RequestContext context) async {
   switch (context.request.method) {
-
     // GET - Listar todos os produtos
     case HttpMethod.get:
       return _getProdutos(context);
@@ -75,17 +73,17 @@ Future<Response> _getProdutos(
         nome,
         descricao,
         preco,
-        imagem_url
-      FROM produto
+        imagem,
+        categoria
+      FROM public.produto
       ORDER BY id DESC
       ''',
     );
 
     // Converte os registros para JSON
     final listaProdutos = resultado.map((row) {
-
       // Recupera os dados do banco
-      final id = row[0] as int;
+      final id = row[0]! as String;
 
       final nome = row[1]?.toString() ?? '';
 
@@ -96,6 +94,7 @@ Future<Response> _getProdutos(
       );
 
       final imagemUrl = row[4]?.toString();
+      final categoria = row[5]?.toString() ?? '';
 
       // Retorna cada produto como objeto JSON
       return {
@@ -104,6 +103,7 @@ Future<Response> _getProdutos(
         'descricao': descricao,
         'preco': preco,
         'imagemUrl': imagemUrl,
+        'categoria': categoria,
       };
     }).toList();
 
@@ -112,7 +112,6 @@ Future<Response> _getProdutos(
       statusCode: HttpStatus.ok,
       body: listaProdutos,
     );
-
   } catch (e) {
     // Exibe o erro no terminal do servidor
     print('Erro ao buscar produtos: $e');
@@ -131,7 +130,6 @@ Future<Response> _getProdutos(
 Future<Response> _cadastrarProduto(
   RequestContext context,
 ) async {
-
   // Recupera os dados enviados pelo frontend
   dynamic dados;
 
@@ -163,8 +161,7 @@ Future<Response> _cadastrarProduto(
 
   final nomeInformado = dados['nome'];
 
-  if (nomeInformado is! String ||
-      nomeInformado.trim().isEmpty) {
+  if (nomeInformado is! String || nomeInformado.trim().isEmpty) {
     return respostaErro(
       HttpStatus.badRequest,
       'O nome do produto é obrigatório!',
@@ -179,8 +176,7 @@ Future<Response> _cadastrarProduto(
 
   final descricaoInformada = dados['descricao'];
 
-  if (descricaoInformada is! String ||
-      descricaoInformada.trim().isEmpty) {
+  if (descricaoInformada is! String || descricaoInformada.trim().isEmpty) {
     return respostaErro(
       HttpStatus.badRequest,
       'A descrição do produto é obrigatória!',
@@ -199,13 +195,11 @@ Future<Response> _cadastrarProduto(
   final double? preco = precoInformado is num
       ? precoInformado.toDouble()
       : precoInformado is String
-          ? double.tryParse(precoInformado.trim())
-          : null;
+      ? double.tryParse(precoInformado.trim())
+      : null;
 
   // Verifica se o preço é válido
-  if (preco == null ||
-      !preco.isFinite ||
-      preco <= 0) {
+  if (preco == null || !preco.isFinite || preco <= 0) {
     return respostaErro(
       HttpStatus.badRequest,
       'O preço deve ser um número maior que zero!',
@@ -217,11 +211,9 @@ Future<Response> _cadastrarProduto(
   // ==========================================
 
   // Aceita imagemUrl ou imagem_url
-  final imagemInformada =
-      dados['imagemUrl'] ?? dados['imagem_url'];
+  final imagemInformada = dados['imagemUrl'] ?? dados['imagem_url'];
 
-  if (imagemInformada != null &&
-      imagemInformada is! String) {
+  if (imagemInformada != null && imagemInformada is! String) {
     return respostaErro(
       HttpStatus.badRequest,
       'A URL da imagem deve ser um texto!',
@@ -230,10 +222,20 @@ Future<Response> _cadastrarProduto(
 
   // A imagem é opcional
   final String? imagemUrl =
-      imagemInformada is String &&
-              imagemInformada.trim().isNotEmpty
-          ? imagemInformada.trim()
-          : null;
+      imagemInformada is String && imagemInformada.trim().isNotEmpty
+      ? imagemInformada.trim()
+      : null;
+
+  final categoriaInformada = dados['categoria'];
+
+  if (categoriaInformada is! String || categoriaInformada.trim().isEmpty) {
+    return respostaErro(
+      HttpStatus.badRequest,
+      'A categoria do produto é obrigatória!',
+    );
+  }
+
+  final categoria = categoriaInformada.trim();
 
   // ==========================================
   // INSERÇÃO NO BANCO DE DADOS
@@ -254,17 +256,19 @@ Future<Response> _cadastrarProduto(
     // Insere o produto na tabela produto
     final resultado = await connection.execute(
       Sql.named('''
-        INSERT INTO produto (
+        INSERT INTO public.produto (
           nome,
           descricao,
           preco,
-          imagem_url
+          imagem,
+          categoria
         )
         VALUES (
           @nome,
           @descricao,
           @preco,
-          @imagemUrl
+          @imagemUrl,
+          @categoria
         )
         RETURNING id
       '''),
@@ -273,11 +277,12 @@ Future<Response> _cadastrarProduto(
         'descricao': descricao,
         'preco': preco,
         'imagemUrl': imagemUrl,
+        'categoria': categoria,
       },
     );
 
     // Recupera o ID gerado pelo PostgreSQL
-    final idGerado = resultado.first[0] as int;
+    final idGerado = resultado.first[0]! as String;
 
     // ==========================================
     // RETORNO DE SUCESSO
@@ -295,10 +300,10 @@ Future<Response> _cadastrarProduto(
           'descricao': descricao,
           'preco': preco,
           'imagemUrl': imagemUrl,
+          'categoria': categoria,
         },
       },
     );
-
   } catch (e) {
     // Registra o erro no terminal
     print('Erro ao cadastrar produto: $e');

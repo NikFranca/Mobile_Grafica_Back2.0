@@ -4,8 +4,7 @@ import 'package:dart_frog/dart_frog.dart';
 import 'package:postgres/postgres.dart';
 
 Future<Response> onRequest(RequestContext context, String id) async {
-  final idProduto = int.tryParse(id);
-  if (idProduto == null) {
+  if (!Produto.idValido(id)) {
     return Response.json(
       statusCode: HttpStatus.badRequest,
       body: {'erro': 'ID do produto inválido'},
@@ -14,16 +13,16 @@ Future<Response> onRequest(RequestContext context, String id) async {
 
   switch (context.request.method) {
     case HttpMethod.put:
-      return _atualizarProduto(context, idProduto);
+      return _atualizarProduto(context, id);
     case HttpMethod.delete:
-      return _deletarProduto(context, idProduto);
+      return _deletarProduto(context, id);
     default:
       return Response(statusCode: HttpStatus.methodNotAllowed);
   }
 }
 
 // 🟡 PUT: Atualizar produto existente
-Future<Response> _atualizarProduto(RequestContext context, int id) async {
+Future<Response> _atualizarProduto(RequestContext context, String id) async {
   try {
     final connection = context.read<Connection?>();
     if (connection == null) {
@@ -36,20 +35,29 @@ Future<Response> _atualizarProduto(RequestContext context, int id) async {
     final body = await context.request.json() as Map<String, dynamic>;
     final produto = Produto.fromJson(body);
 
-    await connection.execute(
+    final resultado = await connection.execute(
       Sql.named(
-        'UPDATE produto '
-        'SET nome = @nome, descricao = @descricao, preco = @preco, imagem_url = @imagemUrl '
-        'WHERE id = @id',
+        'UPDATE public.produto '
+        'SET nome = @nome, descricao = @descricao, preco = @preco, '
+        'imagem = @imagemUrl, categoria = COALESCE(@categoria, categoria) '
+        'WHERE id = @id RETURNING id',
       ),
       parameters: {
-        'id': id,
+        'id': TypedValue(Type.uuid, id),
         'nome': produto.nome,
         'descricao': produto.descricao,
         'preco': produto.preco,
         'imagemUrl': produto.imagemUrl,
+        'categoria': produto.categoria,
       },
     );
+
+    if (resultado.isEmpty) {
+      return Response.json(
+        statusCode: HttpStatus.notFound,
+        body: {'erro': 'Produto não encontrado.'},
+      );
+    }
 
     return Response.json(body: {'mensagem': 'Produto atualizado com sucesso!'});
   } catch (e) {
@@ -61,7 +69,7 @@ Future<Response> _atualizarProduto(RequestContext context, int id) async {
 }
 
 // 🔴 DELETE: Excluir produto por ID
-Future<Response> _deletarProduto(RequestContext context, int id) async {
+Future<Response> _deletarProduto(RequestContext context, String id) async {
   try {
     final connection = context.read<Connection?>();
     if (connection == null) {
@@ -71,10 +79,17 @@ Future<Response> _deletarProduto(RequestContext context, int id) async {
       );
     }
 
-    await connection.execute(
-      Sql.named('DELETE FROM produto WHERE id = @id'),
-      parameters: {'id': id},
+    final resultado = await connection.execute(
+      Sql.named('DELETE FROM public.produto WHERE id = @id RETURNING id'),
+      parameters: {'id': TypedValue(Type.uuid, id)},
     );
+
+    if (resultado.isEmpty) {
+      return Response.json(
+        statusCode: HttpStatus.notFound,
+        body: {'erro': 'Produto não encontrado.'},
+      );
+    }
 
     return Response.json(body: {'mensagem': 'Produto excluído com sucesso!'});
   } catch (e) {

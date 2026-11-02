@@ -1,7 +1,6 @@
-
 class Produto {
   // Identificador único do produto
-  final int? id;
+  final String? id;
 
   // Nome do produto
   final String nome;
@@ -15,13 +14,17 @@ class Produto {
   // URL da imagem (opcional)
   final String? imagemUrl;
 
+  /// Categoria opcional na atualização e obrigatória no cadastro.
+  final String? categoria;
+
   // Construtor da classe Produto
   const Produto({
-    this.id,
     required this.nome,
     required this.descricao,
     required this.preco,
+    this.id,
     this.imagemUrl,
+    this.categoria,
   });
 
   // ==========================================
@@ -29,27 +32,23 @@ class Produto {
   // ==========================================
 
   factory Produto.fromJson(Map<String, dynamic> json) {
-
     // Recupera e valida o ID
-    int? idProduto;
+    String? idProduto;
 
     if (json['id'] != null) {
-      idProduto = int.tryParse(
-        json['id'].toString(),
-      );
-
-      if (idProduto == null || idProduto <= 0) {
+      final idInformado = json['id'];
+      if (idInformado is! String || !idValido(idInformado.trim())) {
         throw const FormatException(
           'ID do produto inválido!',
         );
       }
+      idProduto = idInformado.trim();
     }
 
     // Recupera e valida o nome
     final nomeInformado = json['nome'];
 
-    if (nomeInformado is! String ||
-        nomeInformado.trim().isEmpty) {
+    if (nomeInformado is! String || nomeInformado.trim().isEmpty) {
       throw const FormatException(
         'O nome do produto é obrigatório!',
       );
@@ -60,15 +59,13 @@ class Produto {
     // Recupera e valida a descrição
     final descricaoInformada = json['descricao'];
 
-    if (descricaoInformada is! String ||
-        descricaoInformada.trim().isEmpty) {
+    if (descricaoInformada is! String || descricaoInformada.trim().isEmpty) {
       throw const FormatException(
         'A descrição do produto é obrigatória!',
       );
     }
 
-    final descricaoProduto =
-        descricaoInformada.trim();
+    final descricaoProduto = descricaoInformada.trim();
 
     // Recupera e converte o preço
     final precoInformado = json['preco'];
@@ -76,35 +73,39 @@ class Produto {
     final double? precoProduto = precoInformado is num
         ? precoInformado.toDouble()
         : precoInformado is String
-            ? double.tryParse(precoInformado.trim())
-            : null;
+        ? double.tryParse(precoInformado.trim())
+        : null;
 
     // Verifica se o preço é válido
-    if (precoProduto == null ||
-        !precoProduto.isFinite ||
-        precoProduto <= 0) {
+    if (precoProduto == null || !precoProduto.isFinite || precoProduto <= 0) {
       throw const FormatException(
         'O preço deve ser maior que zero!',
       );
     }
 
     // Recupera a URL da imagem
-    // Aceita imagemUrl e imagem_url
+    // Mantém os nomes de imagem aceitos pela API.
     final imagemInformada =
-        json['imagemUrl'] ?? json['imagem_url'];
+        json['imagemUrl'] ?? json['imagem_url'] ?? json['imagem'];
 
-    if (imagemInformada != null &&
-        imagemInformada is! String) {
+    if (imagemInformada != null && imagemInformada is! String) {
       throw const FormatException(
         'A URL da imagem deve ser um texto!',
       );
     }
 
     final String? imagemProduto =
-        imagemInformada is String &&
-                imagemInformada.trim().isNotEmpty
-            ? imagemInformada.trim()
-            : null;
+        imagemInformada is String && imagemInformada.trim().isNotEmpty
+        ? imagemInformada.trim()
+        : null;
+
+    final categoriaInformada = json['categoria'];
+    if (categoriaInformada != null &&
+        (categoriaInformada is! String || categoriaInformada.trim().isEmpty)) {
+      throw const FormatException(
+        'A categoria do produto deve ser um texto não vazio!',
+      );
+    }
 
     // Retorna o objeto Produto
     return Produto(
@@ -113,8 +114,14 @@ class Produto {
       descricao: descricaoProduto,
       preco: precoProduto,
       imagemUrl: imagemProduto,
+      categoria: (categoriaInformada as String?)?.trim(),
     );
   }
+
+  /// Aceita identificadores UUID usados pela tabela de produtos.
+  static bool idValido(String id) => RegExp(
+    r'^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$',
+  ).hasMatch(id);
 
   // ==========================================
   // CONVERTER OBJETO PRODUTO PARA JSON
@@ -127,6 +134,7 @@ class Produto {
       'descricao': descricao,
       'preco': preco,
       'imagemUrl': imagemUrl,
+      if (categoria != null) 'categoria': categoria,
     };
   }
 
@@ -140,7 +148,8 @@ class Produto {
       'nome': nome,
       'descricao': descricao,
       'preco': preco,
-      'imagem_url': imagemUrl,
+      'imagem': imagemUrl,
+      if (categoria != null) 'categoria': categoria,
     };
   }
 
@@ -149,11 +158,12 @@ class Produto {
   // ==========================================
 
   Produto copyWith({
-    int? id,
+    String? id,
     String? nome,
     String? descricao,
     double? preco,
     String? imagemUrl,
+    String? categoria,
   }) {
     return Produto(
       id: id ?? this.id,
@@ -161,6 +171,7 @@ class Produto {
       descricao: descricao ?? this.descricao,
       preco: preco ?? this.preco,
       imagemUrl: imagemUrl ?? this.imagemUrl,
+      categoria: categoria ?? this.categoria,
     );
   }
 
@@ -175,7 +186,8 @@ class Produto {
         'nome: $nome, '
         'descricao: $descricao, '
         'preco: $preco, '
-        'imagemUrl: $imagemUrl'
+        'imagemUrl: $imagemUrl, '
+        'categoria: $categoria'
         ')';
   }
 }
