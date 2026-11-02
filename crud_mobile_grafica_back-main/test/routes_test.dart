@@ -130,6 +130,7 @@ void main() {
       'nome': 'Cartão de visita',
       'descricao': 'Papel couché',
       'preco': 25.5,
+      'categoria': 'Papelaria',
     };
 
     test('advertises supported methods', () async {
@@ -170,6 +171,17 @@ void main() {
         body: {...validPayload, 'imagemUrl': 123},
       );
       _expectError(result, 400, 'A URL da imagem deve ser um texto!');
+    });
+
+    test('requires a category before accessing the database', () async {
+      for (final categoria in [null, '', '   ', 123]) {
+        final result = await request(
+          'POST',
+          '/api/produtos',
+          body: {...validPayload, 'categoria': categoria},
+        );
+        _expectError(result, 400, 'A categoria do produto é obrigatória!');
+      }
     });
 
     test('reports unavailable database when listing products', () async {
